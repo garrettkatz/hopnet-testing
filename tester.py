@@ -2687,14 +2687,14 @@ def test_standard_vs_cont_stability4(data, gains=[1.0,10.0,50.0,100.0], dynamic=
         # cur_stable_hn_fps_found = set()
         # cur_unstable_hn_fps_found = set()
         # cur_total_hn_fps_found = set()
-        hn_matches = {} # Maps fp_str-->(bool, bool, bool) = (matches data, matched by stable, matched by unstable)
-        data_matches = {} # maps fp_str-->(bool, bool, bool) = (hn fps, matched by stable, matched by unstable)
+        hn_matches = {} # Maps fp_str-->[bool, bool, bool] = (matches data, matched by stable, matched by unstable)
+        data_matches = {} # maps fp_str-->[bool, bool, bool] = (hn fps, matched by stable, matched by unstable)
 
         for j in xrange(sgn_fps.shape[1]):
             fp_str = arr_to_bit_string(sgn_fps[:,j])
             hdists = (utils.hdist(data[:,k], sgn_fps[:,j]) for k in xrange(data.shape[1]))
             if fp_str not in data_matches and any(h==0 or h==data.shape[0] for h in hdists):
-                data_matches[fp_str] = (False, False, False)
+                data_matches[fp_str] = [False, False, False]
 
             if np.all(1>np.absolute(np.linalg.eigvals(hn.jacobian(fps[:,j])))):
                 if np.allclose(np.sign(np.dot(hn.W,sgn_fps[:,j])), sgn_fps[:,j], rtol=0, atol=tol): # What about 0?
@@ -2704,7 +2704,7 @@ def test_standard_vs_cont_stability4(data, gains=[1.0,10.0,50.0,100.0], dynamic=
                         data_matches[fp_str][0] = True
                         data_matches[fp_str][1] = True
                     if fp_str not in hn_matches:
-                        hn_matches[fp_str] = (fp_str in data_matches, True, False)
+                        hn_matches[fp_str] = [fp_str in data_matches, True, False]
                     else:
                         hn_matches[fp_str][1] = True
                 else:
@@ -2720,7 +2720,7 @@ def test_standard_vs_cont_stability4(data, gains=[1.0,10.0,50.0,100.0], dynamic=
                         data_matches[fp_str][0] = True
                         data_matches[fp_str][2] = True
                     if fp_str not in hn_matches:
-                        hn_matches[fp_str] = (fp_str in data_matches, False, True)
+                        hn_matches[fp_str] = [fp_str in data_matches, False, True]
                     else:
                         hn_matches[fp_str][2] = True
                 else:
