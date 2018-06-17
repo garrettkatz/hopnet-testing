@@ -17,16 +17,18 @@ def _energy_sync(W, gain, cur_act, prev_act):
         """
         Uses eq. 3.4 in Soulie et al. 1989
         But modifies eq. 3.2 to include gain, and adds gain term to first sum in eq. 3.4 (equivalent to just multiplying the weights by the gain before use).
-        If prev_act is None, tries to invert W to find the energy.
+        If prev_act is None, 3.4 is undefined.  However, if
+            E(t+0) >= E(t+1) >= E(t+2),...
+        then
+            E(t+1) >= E(t+2) >= E(t+3),...
+        So eq. 3.4 is still an energy function if we use *next and current* activity in place of *current and previous*, respectively.
+        In this case the caller should be consistent in passing None for prev_act.
         """
 
         if prev_act is None:
-            W_inv = np.linalg.inv(W)
-            # Test that W_inv can actually successfully invert W
-            if not np.allclose(np.eye(W.shape[0]), np.matmul(W, W_inv), rtol=0, atol=1e-7):
-                return float('nan') # TODO: pseudoinverse?
-            prev_act = np.dot(W_inv, np.arctanh(cur_act)/gain)
-
+            # Shift time-steps by 1 just for purposes of energy calculation
+            prev_act = cur_act
+            cur_act = _update_sync(W, gain, cur_act)
 
         cur_field = gain*np.dot(W,cur_act)
         prev_field = gain*np.dot(W,prev_act)
