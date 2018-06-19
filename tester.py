@@ -2655,12 +2655,20 @@ def test_standard_vs_cont_stability4(data, gains=[1.0,10.0,50.0,100.0], dynamic=
     hn.learn(data)
 
 
-    stable_matched_fps = np.zeros(len(gains), dtype=np.int_)
-    unstable_matched_fps = np.zeros(len(gains), dtype=np.int_)
-    stable_unmatched_fps = np.zeros(len(gains), dtype=np.int_)
-    unstable_unmatched_fps = np.zeros(len(gains), dtype=np.int_)
-    hn_matches_lst = []
-    data_matches_lst = []
+    stable_match_data = np.zeros(len(gains), dtype=np.int_)
+    unstable_match_data = np.zeros(len(gains), dtype=np.int_)
+    stable_nmatch_data = np.zeros(len(gains), dtype=np.int_)
+    unstable_nmatch_data = np.zeros(len(gains), dtype=np.int_)
+    stable_match_hn_fps = np.zeros(len(gains), dtype=np.int_)
+    unstable_match_hn_fps = np.zeros(len(gains), dtype=np.int_)
+    stable_nmatch_hn_fps = np.zeros(len(gains), dtype=np.int_)
+    unstable_nmatch_hn_fps = np.zeros(len(gains), dtype=np.int_)
+    num_matched_data_by_all = np.zeros(len(gains), dtype=np.int_)
+    num_matched_data_by_stable = np.zeros(len(gains), dtype=np.int_)
+    num_matched_data_by_unstable = np.zeros(len(gains), dtype=np.int_)
+    num_matched_hn_fps_by_all = np.zeros(len(gains), dtype=np.int_)
+    num_matched_hn_fps_by_stable = np.zeros(len(gains), dtype=np.int_)
+    num_matched_hn_fps_by_unstable = np.zeros(len(gains), dtype=np.int_)
 
     # Find fixed points of cont Hopnet at various gain values
     if dynamic:
@@ -2684,82 +2692,109 @@ def test_standard_vs_cont_stability4(data, gains=[1.0,10.0,50.0,100.0], dynamic=
 
         sgn_fps = np.sign(fps)
 
-        # cur_stable_hn_fps_found = set()
-        # cur_unstable_hn_fps_found = set()
-        # cur_total_hn_fps_found = set()
-        hn_matches = {} # Maps fp_str-->[bool, bool, bool] = (matches data, matched by stable, matched by unstable)
-        data_matches = {} # maps fp_str-->[bool, bool, bool] = (hn fps, matched by stable, matched by unstable)
+        cur_matched_data_by_all = set()
+        cur_matched_data_by_stable = set()
+        cur_matched_data_by_unstable = set()
+        cur_matched_hn_fps_by_all = set()
+        cur_matched_hn_fps_by_stable = set()
+        cur_matched_hn_fps_by_unstable = set()
 
         for j in xrange(sgn_fps.shape[1]):
             fp_str = arr_to_bit_string(sgn_fps[:,j])
-            hdists = (utils.hdist(data[:,k], sgn_fps[:,j]) for k in xrange(data.shape[1]))
-            if fp_str not in data_matches and any(h==0 or h==data.shape[0] for h in hdists):
-                data_matches[fp_str] = [False, False, False]
 
             if np.all(1>np.absolute(np.linalg.eigvals(hn.jacobian(fps[:,j])))):
                 if np.allclose(np.sign(np.dot(hn.W,sgn_fps[:,j])), sgn_fps[:,j], rtol=0, atol=tol): # What about 0?
-                    stable_matched_fps[i] += 1
+                    stable_match_hn_fps[i] += 1
 
-                    if fp_str in data_matches:
-                        data_matches[fp_str][0] = True
-                        data_matches[fp_str][1] = True
-                    if fp_str not in hn_matches:
-                        hn_matches[fp_str] = [fp_str in data_matches, True, False]
-                    else:
-                        hn_matches[fp_str][1] = True
+                    cur_matched_hn_fps_by_all.add(fp_str)
+                    cur_matched_hn_fps_by_stable.add(fp_str)
                 else:
-                    stable_unmatched_fps[i] += 1
+                    stable_nmatch_hn_fps[i] += 1
 
-                    if fp_str in data_matches:
-                        data_matches[fp_str][0] = True
+                if any(np.allclose(np.sign(data[:,k]), sgn_fps[:,j], rtol=0, atol=tol) for k in xrange(data.shape[1])):
+                    stable_match_data[i] += 1
+
+                    cur_matched_data_by_all.add(fp_str)
+                    cur_matched_data_by_stable.add(fp_str)
+                else:
+                    stable_nmatch_data[i] += 1                    
+
             else:
                 if np.allclose(np.sign(np.dot(hn.W,sgn_fps[:,j])), sgn_fps[:,j], rtol=0, atol=tol): # What about 0?
-                    unstable_matched_fps[i] += 1
-                    
-                    if fp_str in data_matches:
-                        data_matches[fp_str][0] = True
-                        data_matches[fp_str][2] = True
-                    if fp_str not in hn_matches:
-                        hn_matches[fp_str] = [fp_str in data_matches, False, True]
-                    else:
-                        hn_matches[fp_str][2] = True
+                    unstable_match_hn_fps[i] += 1
+
+                    cur_matched_hn_fps_by_all.add(fp_str)
+                    cur_matched_hn_fps_by_unstable.add(fp_str)
                 else:
-                    unstable_unmatched_fps[i] += 1
+                    unstable_nmatch_hn_fps[i] += 1
 
-                    if fp_str in data_matches:
-                        data_matches[fp_str][0] = True
+                if any(np.allclose(np.sign(data[:,k]), sgn_fps[:,j], rtol=0, atol=tol) for k in xrange(data.shape[1])):
+                    unstable_match_data[i] += 1
+
+                    cur_matched_data_by_all.add(fp_str)
+                    cur_matched_data_by_unstable.add(fp_str)
+                else:
+                    unstable_nmatch_data[i] += 1     
+
+        num_matched_data_by_all[i] = len(cur_matched_data_by_all)
+        num_matched_data_by_stable[i] = len(cur_matched_data_by_stable)
+        num_matched_data_by_unstable[i] = len(cur_matched_data_by_unstable)
+        num_matched_hn_fps_by_all[i] = len(cur_matched_hn_fps_by_all)
+        num_matched_hn_fps_by_stable[i] = len(cur_matched_hn_fps_by_stable)
+        num_matched_hn_fps_by_unstable[i] = len(cur_matched_hn_fps_by_unstable)
         
-        hn_matches_lst.append(hn_matches)
-        data_matches_lst.append(data_matches)
-
-    return cont_fps,stable_matched_fps,unstable_matched_fps,stable_unmatched_fps,unstable_unmatched_fps,hn_matches_lst,data_matches_lst
+    res = (stable_match_data, unstable_match_data, stable_nmatch_data, unstable_nmatch_data,
+            stable_match_hn_fps, unstable_match_hn_fps, stable_nmatch_hn_fps, unstable_nmatch_hn_fps,
+            num_matched_data_by_all, num_matched_data_by_stable, num_matched_data_by_unstable,
+            num_matched_hn_fps_by_all, num_matched_hn_fps_by_stable, num_matched_hn_fps_by_unstable)
+    return res
 
 def test_s_vs_c_stability_wrapper4(args):
     shape, gains, dynamic, traversal, tol = args
     np.random.seed()
     data = gd.get_random_discrete(*shape)
-    _,stable_matched_fps,unstable_matched_fps,stable_unmatched_fps,unstable_unmatched_fps,hn_matches_lst,data_matches_lst = test_standard_vs_cont_stability4(data, gains, dynamic, traversal, tol)
-    return stable_matched_fps,unstable_matched_fps,stable_unmatched_fps,unstable_unmatched_fps,hn_matches_lst,data_matches_lst
+    res = test_standard_vs_cont_stability4(data, gains, dynamic, traversal, tol)
+    return res
 
 def test_s_vs_c_stability_full4(n, shape, gains=[1.0,10.0,50.0,100.0], dynamic=False, traversal=True, tol=1e-6):
-    stable_matched_fps = np.zeros((n,len(gains)), dtype=np.int_)
-    unstable_matched_fps = np.zeros((n,len(gains)), dtype=np.int_)
-    stable_unmatched_fps = np.zeros((n,len(gains)), dtype=np.int_)
-    unstable_unmatched_fps = np.zeros((n,len(gains)), dtype=np.int_)
-    hn_matches_matrix = []
-    data_matches_matrix = []
+    stable_match_data = np.zeros((n,len(gains)), dtype=np.int_)
+    unstable_match_data = np.zeros((n,len(gains)), dtype=np.int_)
+    stable_nmatch_data = np.zeros((n,len(gains)), dtype=np.int_)
+    unstable_nmatch_data = np.zeros((n,len(gains)), dtype=np.int_)
+    stable_match_hn_fps = np.zeros((n,len(gains)), dtype=np.int_)
+    unstable_match_hn_fps = np.zeros((n,len(gains)), dtype=np.int_)
+    stable_nmatch_hn_fps = np.zeros((n,len(gains)), dtype=np.int_)
+    unstable_nmatch_hn_fps = np.zeros((n,len(gains)), dtype=np.int_)
+    num_matched_data_by_all = np.zeros((n,len(gains)), dtype=np.int_)
+    num_matched_data_by_stable = np.zeros((n,len(gains)), dtype=np.int_)
+    num_matched_data_by_unstable = np.zeros((n,len(gains)), dtype=np.int_)
+    num_matched_hn_fps_by_all = np.zeros((n,len(gains)), dtype=np.int_)
+    num_matched_hn_fps_by_stable = np.zeros((n,len(gains)), dtype=np.int_)
+    num_matched_hn_fps_by_unstable = np.zeros((n,len(gains)), dtype=np.int_)
 
 
     pool = mp.Pool(16)
     res = pool.map(test_s_vs_c_stability_wrapper4, [(shape,gains,dynamic,traversal,tol)]*n, chunksize=2)
 
     for i in xrange(n):
-        stable_matched_fps[i] += res[i][0]
-        unstable_matched_fps[i] += res[i][1]
-        stable_unmatched_fps[i] += res[i][2]
-        unstable_unmatched_fps[i] += res[i][3]
-        hn_matches_matrix.append(res[i][4])
-        data_matches_matrix.append(res[i][5])
+        stable_match_data[i] += res[i][0]
+        unstable_match_data[i] += res[i][1]
+        stable_nmatch_data[i] += res[i][2]
+        unstable_nmatch_data[i] += res[i][3]
+        stable_match_hn_fps[i] += res[i][4]
+        unstable_match_hn_fps[i] += res[i][5]
+        stable_nmatch_hn_fps[i] += res[i][6]
+        unstable_nmatch_hn_fps[i] += res[i][7]
+        num_matched_data_by_all[i] += res[i][8]
+        num_matched_data_by_stable[i] += res[i][9]
+        num_matched_data_by_unstable[i] += res[i][10]
+        num_matched_hn_fps_by_all[i] += res[i][11]
+        num_matched_hn_fps_by_stable[i] += res[i][12]
+        num_matched_hn_fps_by_unstable[i] += res[i][13]
 
-    return stable_matched_fps,unstable_matched_fps,stable_unmatched_fps,unstable_unmatched_fps,hn_matches_matrix,data_matches_matrix
+    res = (stable_match_data, unstable_match_data, stable_nmatch_data, unstable_nmatch_data,
+            stable_match_hn_fps, unstable_match_hn_fps, stable_nmatch_hn_fps, unstable_nmatch_hn_fps,
+            num_matched_data_by_all, num_matched_data_by_stable, num_matched_data_by_unstable,
+            num_matched_hn_fps_by_all, num_matched_hn_fps_by_stable, num_matched_hn_fps_by_unstable)
+    return res
 
