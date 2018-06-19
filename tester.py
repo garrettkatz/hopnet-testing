@@ -23,6 +23,7 @@ import dfibers.numerical_utilities as df_nu
 import dfibers.fixed_points as df_fx
 import dfibers.solvers as df_sv
 import rnn_fxpts as rf
+import rnn_fxpts_thresh_pp as rftpp
 # import rnn_fxpts_limited as rfl
 
 import itertools as it
@@ -2682,11 +2683,11 @@ def test_standard_vs_cont_stability4(data, gains=[1.0,10.0,50.0,100.0], dynamic=
         hn.gain = g
 
         if traversal:
-            fps,_ = rf.run_solver(hn.W*g)
+            fps, _ = rftpp.run_solver(hn.W*g)
 
         else:
-            fxV, _ = rfl.baseline_solver(hn.W*g)
-            fps, _ = rfl.post_process_fxpts(hn.W*g, fxV)
+            fxV, _ = rftpp.baseline_solver(hn.W*g)
+            fps, _ = rftpp.post_process_fxpts(hn.W*g, fxV, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
 
         cont_fps.append(fps)
 
