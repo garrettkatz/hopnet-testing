@@ -1,5 +1,10 @@
 """
 Library for fixed point location in recurrent neural networks using directional fibers.
+
+Note: Modified so that the fiber solver uses threshold-based post-processing
+Note: Modified so that the baseline solver uses processor time (time.process_time) 
+    instead of clock time, because time.clock has strange behavior when multiple processes
+    are used and differs across platforms.
 """
 import os
 import sys
