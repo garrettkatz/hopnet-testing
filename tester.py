@@ -2671,6 +2671,8 @@ def test_standard_vs_cont_stability4(data, gains=[1.0,10.0,50.0,100.0], dynamic=
     num_matched_hn_fps_by_stable = np.zeros(len(gains), dtype=np.int_)
     num_matched_hn_fps_by_unstable = np.zeros(len(gains), dtype=np.int_)
 
+    timings = np.zeros(len(gains), dtype=np.int_)
+
     # Find fixed points of cont Hopnet at various gain values
     if dynamic:
         max_eval = np.max(np.linalg.eigvalsh(hn.W))
@@ -2683,11 +2685,17 @@ def test_standard_vs_cont_stability4(data, gains=[1.0,10.0,50.0,100.0], dynamic=
         hn.gain = g
 
         if traversal:
+            pre = time.process_time()
             fps, _ = rftpp.run_solver(hn.W*g)
+            post = time.process_time()
 
         else:
+            pre = time.process_time()
             fxV, _ = rftpp.baseline_solver(hn.W*g)
             fps, _ = rftpp.post_process_fxpts(hn.W*g, fxV, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
+            post = time.process_time()
+
+        timings[i] = post-pre
 
         cont_fps.append(fps)
 
@@ -2747,7 +2755,8 @@ def test_standard_vs_cont_stability4(data, gains=[1.0,10.0,50.0,100.0], dynamic=
     res = (stable_match_data, unstable_match_data, stable_nmatch_data, unstable_nmatch_data,
             stable_match_hn_fps, unstable_match_hn_fps, stable_nmatch_hn_fps, unstable_nmatch_hn_fps,
             num_matched_data_by_all, num_matched_data_by_stable, num_matched_data_by_unstable,
-            num_matched_hn_fps_by_all, num_matched_hn_fps_by_stable, num_matched_hn_fps_by_unstable)
+            num_matched_hn_fps_by_all, num_matched_hn_fps_by_stable, num_matched_hn_fps_by_unstable,
+            timings)
     return res
 
 def test_s_vs_c_stability_wrapper4(args):
@@ -2772,6 +2781,7 @@ def test_s_vs_c_stability_full4(n, shape, gains=[1.0,10.0,50.0,100.0], dynamic=F
     num_matched_hn_fps_by_all = np.zeros((n,len(gains)), dtype=np.int_)
     num_matched_hn_fps_by_stable = np.zeros((n,len(gains)), dtype=np.int_)
     num_matched_hn_fps_by_unstable = np.zeros((n,len(gains)), dtype=np.int_)
+    timings = np.zeros((n,len(gains)), dtype=np.int_)
 
 
     pool = mp.Pool(16)
@@ -2792,10 +2802,12 @@ def test_s_vs_c_stability_full4(n, shape, gains=[1.0,10.0,50.0,100.0], dynamic=F
         num_matched_hn_fps_by_all[i] += res[i][11]
         num_matched_hn_fps_by_stable[i] += res[i][12]
         num_matched_hn_fps_by_unstable[i] += res[i][13]
+        timings[i] += res[i][14]
 
     res = (stable_match_data, unstable_match_data, stable_nmatch_data, unstable_nmatch_data,
             stable_match_hn_fps, unstable_match_hn_fps, stable_nmatch_hn_fps, unstable_nmatch_hn_fps,
             num_matched_data_by_all, num_matched_data_by_stable, num_matched_data_by_unstable,
-            num_matched_hn_fps_by_all, num_matched_hn_fps_by_stable, num_matched_hn_fps_by_unstable)
+            num_matched_hn_fps_by_all, num_matched_hn_fps_by_stable, num_matched_hn_fps_by_unstable,
+            timings)
     return res
 
