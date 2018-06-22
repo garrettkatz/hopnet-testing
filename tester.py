@@ -2685,15 +2685,15 @@ def test_standard_vs_cont_stability4(data, gains=[1.0,10.0,50.0,100.0], dynamic=
         hn.gain = g
 
         if traversal:
-            pre = time.process_time()
+            pre = utils.process_time()
             fps, _ = rftpp.run_solver(hn.W*g)
-            post = time.process_time()
+            post = utils.process_time()
 
         else:
-            pre = time.process_time()
+            pre = utils.process_time()
             fxV, _ = rftpp.baseline_solver(hn.W*g)
             fps, _ = rftpp.post_process_fxpts(hn.W*g, fxV, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
-            post = time.process_time()
+            post = utils.process_time()
 
         timings[i] = post-pre
 

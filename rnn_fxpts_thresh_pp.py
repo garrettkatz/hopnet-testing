@@ -2,7 +2,7 @@
 Library for fixed point location in recurrent neural networks using directional fibers.
 
 Note: Modified so that the fiber solver uses threshold-based post-processing
-Note: Modified so that the baseline solver uses processor time (time.process_time) 
+Note: Modified so that the baseline solver uses processor time (utils.process_time) 
     instead of clock time, because time.clock has strange behavior when multiple processes
     are used and differs across platforms.
 """
@@ -17,6 +17,8 @@ import scipy.linalg as spl
 import plotter as ptr
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+
+import utils # Used for timing
 
 T2CONST = (np.sqrt(2.)-1.)**2 / np.sqrt(16./27.)
 
@@ -625,7 +627,7 @@ def directional_fiber(W, va=None, c=None, max_nr_iters=2**8, nr_tol=2**-32, max_
     max_refine_steps is the maximum number of steps allowed for candidate fixed point refinement, as in refine_fiber_fxpt
     max_fxpts is the number of fixed points at which traversal can terminate
       if None, traversal continues until another termination criteria is met
-    stop_time is a clock time (compared with time.process_time()) at which traversal is terminated
+    stop_time is a process time (compared with utils.process_time()) at which traversal is terminated
       if None, traversal continues until another termination criteria is met
     logfile is a file object open for writing that records progress
       if None, no progress is recorded
@@ -745,7 +747,7 @@ def directional_fiber(W, va=None, c=None, max_nr_iters=2**8, nr_tol=2**-32, max_
         if max_fxpts is not None and num_fxpts >= max_fxpts:
             status = "Max fxpts found"
             break
-        if stop_time is not None and time.process_time() > stop_time:
+        if stop_time is not None and utils.process_time() > stop_time:
             status = "Timed out"
             break
 
@@ -769,7 +771,7 @@ def refine_fiber_fxpt(W, _W_, _Winv_, c, va, z, max_nr_iters=2**8, nr_tol=2**-32
       if None, no limit is imposed on the return value of traverse_step_size
     max_refine_steps is the maximum number of outer steps allowed for fixed point refinement
       if None, refinement continues until another termination criteria is met
-    stop_time is a clock time (compared with time.process_time()) at which refinement is terminated
+    stop_time is a clock time (compared with utils.process_time()) at which refinement is terminated
       if None, refinement continues until another termination criteria is met
     logfile is a file object open for writing that records progress
       if None, no progress is recorded
@@ -829,7 +831,7 @@ def refine_fiber_fxpt(W, _W_, _Winv_, c, va, z, max_nr_iters=2**8, nr_tol=2**-32
         if max_refine_steps is not None and step >= max_refine_steps:
             status = "Max refine steps reached"
             break
-        if stop_time is not None and time.process_time() > stop_time:
+        if stop_time is not None and utils.process_time() > stop_time:
             status = "Timed out"
             break
 
@@ -854,7 +856,7 @@ def refine_fiber_fxpt2(W, _W_, c, va, z, max_nr_iters=2**8, nr_tol=2**-32, max_s
       if None, no limit is imposed on the return value of traverse_step_size
     max_refine_steps is the maximum number of outer steps allowed for fixed point refinement
       if None, refinement continues until another termination criteria is met
-    stop_time is a clock time (compared with time.process_time()) at which refinement is terminated
+    stop_time is a clock time (compared with utils.process_time()) at which refinement is terminated
       if None, refinement continues until another termination criteria is met
     logfile is a file object open for writing that records progress
       if None, no progress is recorded
@@ -916,7 +918,7 @@ def refine_fiber_fxpt2(W, _W_, c, va, z, max_nr_iters=2**8, nr_tol=2**-32, max_s
         if max_refine_steps is not None and step >= max_refine_steps:
             status = "Max refine steps reached"
             break
-        if stop_time is not None and time.process_time() > stop_time:
+        if stop_time is not None and utils.process_time() > stop_time:
             status = "Timed out"
             break
 
@@ -1173,7 +1175,7 @@ def baseline_solver(W, timeout=60, max_fxpts=None, max_traj_steps=10, logfile=No
     N = W.shape[0]
     fxV = []
     neighbors = lambda X, y: identical_fixed_points(W, X, y)[0]
-    start = time.process_time()
+    start = utils.process_time()
     for num_reps in it.count(1):
 
         # get random initial seed anywhere in range
@@ -1190,7 +1192,7 @@ def baseline_solver(W, timeout=60, max_fxpts=None, max_traj_steps=10, logfile=No
         fxV.append(fxv)
 
         # check termination
-        runtime = time.process_time()-start
+        runtime = utils.process_time()-start
         if runtime > timeout:
             if logfile is not None:
                 hardwrite(logfile,'term: %d reps %fs\n'%(num_reps,runtime))
@@ -1210,7 +1212,7 @@ def local_search(W, max_traj_steps=10, max_repetitions=None, stop_time=None, log
     max_fxpts is the number of fixed points after which the solver is allowed to terminate.
       if None, solver continues until timeout.
     max_traj_steps is the maximum number of steps along a trajectory before optimization starts.
-    stop_time is a clock time (compared with time.process_time()) at which random search is terminated
+    stop_time is a clock time (compared with utils.process_time()) at which random search is terminated
       if None, search continues until another termination criteria is met
     logfile is a file object open for writing that records progress
       if None, no progress is recorded
@@ -1245,12 +1247,12 @@ def local_search(W, max_traj_steps=10, max_repetitions=None, stop_time=None, log
         if max_repetitions is not None and len(V) >= max_repetitions:
             status = 'Max repetitions'
             break
-        if stop_time is not None and time.process_time() > stop_time:
+        if stop_time is not None and utils.process_time() > stop_time:
             status = 'Timed out'
             break
 
         if (len(V) % 10) == 0 and logfile is not None:
-            hardwrite(logfile,'%d reps (%f <= %fs)\n'%(len(V), time.process_time(), stop_time))
+            hardwrite(logfile,'%d reps (%f <= %fs)\n'%(len(V), utils.process_time(), stop_time))
             
     if logfile is not None:
         hardwrite(logfile,'term: %d reps %fs\n'%(num_reps,runtime))
