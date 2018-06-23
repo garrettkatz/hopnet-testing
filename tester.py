@@ -2441,21 +2441,24 @@ def test_tanh_capacity_n_vs_d(tests, ns, ds, gain, sync=False):
     return np.transpose(errs, (1,0,2)) # Shape: ns*ds*tests
 
 
-def test_stability_at_mems2(n=32, size=100, gain=10, num_mems=[1,5,10,15,20], num_bits_to_flip=[0,5,10,15,20,25,30,35,40,45,50], probes=50):
+def test_stability_at_mems2(n=32, size=100, gain=10, num_mems=[1,5,10,15,20], num_bits_to_flip=[0,5,10,15,20,25,30,35,40,45,50], probes=50, sync=True):
     
     pool = mp.Pool(16)
 
-    pbfs = pool.map(test_stability_at_mems2_process, [(size,gain,num_mems,num_bits_to_flip,probes)]*n)
+    pbfs = pool.map(test_stability_at_mems2_process, [(size,gain,num_mems,num_bits_to_flip,probes,sync)]*n)
 
     return np.array(pbfs)
 
 
 def test_stability_at_mems2_process(args):
-    size,gain,num_mems,num_bits_to_flip,probes = args
+    size,gain,num_mems,num_bits_to_flip,probes,sync = args
 
     pbfs = np.zeros((len(num_mems),len(num_bits_to_flip)))
 
-    hn = chc.Hopnet(size, gain=gain)
+    if sync:
+        hn = chc.Hopnet(size, gain=gain)
+    else:
+        hn = chc.Hopnet(size, mode=chc.modes['async_deterministic'], gain=gain)
 
     for j,nm in enumerate(num_mems):
         for k,nbtf in enumerate(num_bits_to_flip):
@@ -2499,7 +2502,7 @@ def test_stability_4_process(W):
     np.random.seed()
     return rf.run_solver(W)
 
-def test_stability_4(size=(100,3), data=None, gain=10, traversal_attempts=10, probes=100):
+def test_stability_4(size=(100,3), data=None, gain=10, traversal_attempts=10, probes=100, sync=True):
 
     pbfs = []
     jacobians = []
@@ -2509,7 +2512,11 @@ def test_stability_4(size=(100,3), data=None, gain=10, traversal_attempts=10, pr
     else:
         data = gd.get_random_discrete(*size)
 
-    hn = chc.Hopnet(size[0], gain=gain)
+    if sync:
+        hn = chc.Hopnet(size[0], gain=gain)
+    else:
+        hn = chc.Hopnet(size[0], mode=chc.modes['async_deterministic'], gain=gain)
+    
     hn.learn(data)
 
 
@@ -2640,7 +2647,7 @@ def test_stability_at_mems3_process(args):
     return pbfs
 
 
-def test_standard_vs_cont_stability4(data, gains=[1.0,10.0,50.0,100.0], dynamic=False, traversal=True, tol=1e-16):
+def test_standard_vs_cont_stability4(data, gains=[1.0,10.0,50.0,100.0], dynamic=False, traversal=True, tol=1e-16, times=None):
     def arr_to_bit_string(arr):
         s = ''
         for e in np.sign(arr):
@@ -2691,7 +2698,10 @@ def test_standard_vs_cont_stability4(data, gains=[1.0,10.0,50.0,100.0], dynamic=
 
         else:
             pre = utils.process_time()
-            fxV, _ = rftpp.baseline_solver(hn.W*g)
+            if times is not None:
+                fxV, _ = rftpp.baseline_solver(hn.W*g, timeout=times[i])
+            else:
+                fxV, _ = rftpp.baseline_solver(hn.W*g)
             fps, _ = rftpp.post_process_fxpts(hn.W*g, fxV, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
             post = utils.process_time()
 
@@ -2760,13 +2770,13 @@ def test_standard_vs_cont_stability4(data, gains=[1.0,10.0,50.0,100.0], dynamic=
     return res
 
 def test_s_vs_c_stability_wrapper4(args):
-    shape, gains, dynamic, traversal, tol = args
+    shape, gains, dynamic, traversal, tol, times = args
     np.random.seed()
     data = gd.get_random_discrete(*shape)
-    res = test_standard_vs_cont_stability4(data, gains, dynamic, traversal, tol)
+    res = test_standard_vs_cont_stability4(data, gains, dynamic, traversal, tol, times)
     return res
 
-def test_s_vs_c_stability_full4(n, shape, gains=[1.0,10.0,50.0,100.0], dynamic=False, traversal=True, tol=1e-6):
+def test_s_vs_c_stability_full4(n, shape, gains=[1.0,10.0,50.0,100.0], dynamic=False, traversal=True, tol=1e-6, times=None):
     stable_match_data = np.zeros((n,len(gains)), dtype=np.int_)
     unstable_match_data = np.zeros((n,len(gains)), dtype=np.int_)
     stable_nmatch_data = np.zeros((n,len(gains)), dtype=np.int_)
@@ -2785,7 +2795,7 @@ def test_s_vs_c_stability_full4(n, shape, gains=[1.0,10.0,50.0,100.0], dynamic=F
 
 
     pool = mp.Pool(16)
-    res = pool.map(test_s_vs_c_stability_wrapper4, [(shape,gains,dynamic,traversal,tol)]*n, chunksize=2)
+    res = pool.map(test_s_vs_c_stability_wrapper4, [(shape,gains,dynamic,traversal,tol,times)]*n, chunksize=2)
 
     for i in xrange(n):
         stable_match_data[i] += res[i][0]
