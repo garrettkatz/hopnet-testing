@@ -2559,12 +2559,12 @@ def test_fps_vs_runs_tanh_process(args):
     fps = None
 
     for i in xrange(traversal_attempts):
-        new_fps,_ = rf.run_solver(hn.W*gain)
+        new_fps,_ = rftpp.run_solver(hn.W*gain)
         if fps is None:
             fps = new_fps
         else:
             fps = np.concatenate((fps,new_fps), axis=1)
-            fps,_ = rf.post_process_fxpts(hn.W*gain, fps)
+            fps,_ = rftpp.post_process_fxpts(hn.W*gain, fps, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
 
         cur_hn_fps = []
         for j in xrange(fps.shape[1]):
