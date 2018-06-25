@@ -20,23 +20,31 @@ from matplotlib.lines import Line2D
 import cont_hopnet_customizable as chc
 import rnn_fxpts as rfx
 
-def make_random_hopnet(n, k, m, g):
+def make_random_data(n, k, m):
     size = (n, k)
     data = (m + (1-m)*np.random.random(size))*np.random.choice([-1,1], size=size)
-    hn = chc.Hopnet(n=n, gain=g)
+    return data
+
+def make_hopnet(data, g, mode=None):
+    if mode is None: mode = chc.modes["sync"]
+    n = data.shape[0]
+    hn = chc.Hopnet(n=n, gain=g, mode=mode)
     hn.learn(data)
-    return hn, data
+    return hn
 
-def plot_energy():
+def plot_energy(mode_string):
 
-    n = 48 # network size
+    n = 100 # network size
     k = 3 # number of training vectors
     m = .9 # lower bound on fixed point coordinate magnitude
-    g = 8.0 # gain
+    g = 10.0 # gain
+    mode = chc.modes[mode_string]
+    
     num_runs = 10 # number of trajectories to run
     num_steps = 10 # number of time-steps for each trajectory
 
-    hn, data = make_random_hopnet(n, k, m, g)
+    data = make_random_data(n, k, m)
+    hn = make_hopnet(data, g, mode=mode)
 
     # Run network, tracking activity and energy
     activities = [[] for run in range(num_runs)]
@@ -82,15 +90,15 @@ def plot_energy():
     pt.show()
 
 def compute_fiber_energy(
-    filebase='tmp', # for saving results
-    n = 48,         # network size
-    k = 3,          # number of training vectors
-    m = .9,         # lower bound on fixed point coordinate magnitude
-    g = 8.0,        # gain
+    filebase, # for saving results
+    data,           # training data
+    g = 10.0,        # gain
+    mode=None,      # hopnet mode (sync or async)
     steps = 1e6,    # max traverse steps
     ):
 
-    hn, data = make_random_hopnet(n, k, m, g)
+    if mode is None: mode = chc.modes["sync"]
+    hn = make_hopnet(data, g, mode=mode)
 
     # Run fiber solver
     logfile = open(filebase+'.log','w')
@@ -127,7 +135,17 @@ def compute_fiber_energy(
     logfile.close()
 
 def compute_fiber_energy_caller(args): # one parameter for multiprocessing.Pool
-    compute_fiber_energy(*args)
+    filebase, n, k, m, g, max_traverse_steps = args
+    # both modes
+    data = make_random_data(n, k, m)
+    for mode_string in ["sync", "async_deterministic"]:
+        compute_fiber_energy(
+            filebase + '_' + mode_string,
+            data,
+            g,
+            chc.modes[mode_string],
+            steps = max_traverse_steps,
+        )
 
 def run_compute_fiber_energy_pool(args_list, num_procs=0):
 
@@ -143,7 +161,9 @@ def run_compute_fiber_energy_pool(args_list, num_procs=0):
     else: # serial
 
         print("single processing...")
-        for args in args_list: compute_fiber_energy_caller(args)
+        for a,args in enumerate(args_list):
+            print("%d of %d"%(a, len(args_list)))
+            compute_fiber_energy_caller(args)
 
 def plot_fiber_energy(filebase):
 
@@ -157,36 +177,34 @@ def plot_fiber_energy(filebase):
     for step in range(fiber.shape[1]):
         energy[step] = hn.energy(fiber[:-1, step], None)
 
-    # Plot energy and alpha along fiber
+    # Plot energy along fiber
     pt.figure(figsize=(6,4))
     h1 = pt.plot(energy,'-k')[0]
-    h2 = pt.plot(fiber[-1,:],'--k')[0]
 
     # Indicate zero-crossings
     sign_change = np.flatnonzero(np.sign(fiber[-1,:-1]*fiber[-1,1:]) <= 0)
-    y_min = min(energy.min(), fiber[-1,:].min())
-    y_max = max(energy.max(), fiber[-1,:].max())
+    y_min, y_max = energy.min(), energy.max()
     for sc in sign_change:
         pt.plot([sc, sc], [y_min, y_max], linestyle=':', color='gray', zorder=1)
 
     # Indicate stable and stored fixed points
-    h3 = Line2D([0],[0], marker='s', c='none', markeredgecolor='k')
-    h4 = Line2D([0],[0], marker='D', c='none', markerfacecolor='k', markeredgecolor='k')
+    h2 = Line2D([0],[0], marker='s', c='none', markeredgecolor='k')
+    h3 = Line2D([0],[0], marker='D', c='none', markerfacecolor='k', markeredgecolor='k')
     for sc in sign_change:
         v = fiber[:-1,sc]
         # Stability
         eigs = np.linalg.eigvals(hn.jacobian(v))
         if np.absolute(eigs).max() < 1: # stable around fixed point
-            pt.scatter([sc, sc], [energy[sc], fiber[-1,sc]],
+            pt.scatter([sc], [energy[sc]],
                 marker='s', c='none', edgecolors='k', zorder=2)
         # Stored
         if (np.sign(data * v[:,np.newaxis]) > 0).all(axis=0).any():
-            pt.scatter([sc, sc], [energy[sc], fiber[-1,sc]],
+            pt.scatter([sc], [energy[sc]],
                 marker='D', c='k', edgecolors='k', zorder=3)
 
     pt.xlabel('Traversal step')
     pt.ylabel('Energy and alpha')
-    pt.legend([h1, h2, h3, h4], ['Energy','Alpha', 'Stable', 'Stored'])
+    pt.legend([h1, h2, h3], ['Energy', 'Stable', 'Stored'])
     pt.show()
 
 def plot_fxpt_energy(filebase):
@@ -264,21 +282,25 @@ def plot_energy_runs(filebases):
 
 if __name__ == "__main__":
 
-    plot_energy() # sanity check that energy decreases on one example network
+    # # sanity check that energy decreases on one example network
+    plot_energy("sync")
+    plot_energy("async_deterministic")
 
-    num_runs = 12
+    num_runs = 25
     args_list = [(
         'energy/run%d'%run,    # results filebase
-        48,                    # network size
+        100,                    # network size
         3,                     # number of training vectors
         .9,                    # lower bound on fixed point coordinate magnitude
-        8.0,                   # gain
+        10.0,                   # gain
         1e5,                   # max traverse steps
         ) for run in range(num_runs)]
 
     run_compute_fiber_energy_pool(args_list, num_procs=0)
 
-    plot_fiber_energy(filebase='energy/run0')
-    plot_fxpt_energy(filebase='energy/run0')
-    plot_energy_runs(filebases=['energy/run%d'%r for r in range(num_runs)])
+    for mode_string in ["sync", "async_deterministic"]:
+        plot_fiber_energy(filebase='energy/run2_' + mode_string)
+        plot_fxpt_energy(filebase='energy/run2_' + mode_string)
+        plot_energy_runs(filebases=['energy/run%d_%s'%(r, mode_string)
+            for r in range(num_runs)])
 
