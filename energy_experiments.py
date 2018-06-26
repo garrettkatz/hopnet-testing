@@ -203,7 +203,7 @@ def plot_fiber_energy(filebase):
                 marker='D', c='k', edgecolors='k', zorder=3)
 
     pt.xlabel('Traversal step')
-    pt.ylabel('Energy and alpha')
+    pt.ylabel('Energy')
     pt.legend([h1, h2, h3], ['Energy', 'Stable', 'Stored'])
     pt.show()
 
@@ -282,9 +282,9 @@ def plot_energy_runs(filebases):
 
 if __name__ == "__main__":
 
-    # # sanity check that energy decreases on one example network
-    plot_energy("sync")
-    plot_energy("async_deterministic")
+    # # # sanity check that energy decreases on one example network
+    # plot_energy("sync")
+    # plot_energy("async_deterministic")
 
     num_runs = 25
     args_list = [(
@@ -296,11 +296,11 @@ if __name__ == "__main__":
         1e5,                   # max traverse steps
         ) for run in range(num_runs)]
 
-    run_compute_fiber_energy_pool(args_list, num_procs=0)
+    # run_compute_fiber_energy_pool(args_list, num_procs=0)
 
     for mode_string in ["sync", "async_deterministic"]:
         plot_fiber_energy(filebase='energy/run2_' + mode_string)
-        plot_fxpt_energy(filebase='energy/run2_' + mode_string)
+        # plot_fxpt_energy(filebase='energy/run2_' + mode_string)
         plot_energy_runs(filebases=['energy/run%d_%s'%(r, mode_string)
             for r in range(num_runs)])
 
