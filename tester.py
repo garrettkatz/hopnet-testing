@@ -2678,7 +2678,10 @@ def test_standard_vs_cont_stability4(data, gains=[1.0,10.0,50.0,100.0], dynamic=
     num_matched_hn_fps_by_stable = np.zeros(len(gains), dtype=np.int_)
     num_matched_hn_fps_by_unstable = np.zeros(len(gains), dtype=np.int_)
 
-    timings = np.zeros(len(gains), dtype=np.int_)
+    run_times_pt = np.zeros(len(gains))
+    postproc_times_pt = np.zeros(len(gains))
+    run_times_c = np.zeros(len(gains))
+    postproc_times_c = np.zeros(len(gains))
 
     # Find fixed points of cont Hopnet at various gain values
     if dynamic:
@@ -2692,20 +2695,32 @@ def test_standard_vs_cont_stability4(data, gains=[1.0,10.0,50.0,100.0], dynamic=
         hn.gain = g
 
         if traversal:
-            pre = utils.process_time()
-            fps, _ = rftpp.run_solver(hn.W*g)
-            post = utils.process_time()
+            pre_pt = utils.process_time()
+            pre_c = time.clock()
+            fps, _ = rftpp.run_solver(hn.W*g, post_process=False)
+            post1_pt = utils.process_time()
+            post1_c = time.clock()
+            fps, _ = rftpp.post_process_fxpts(hn.W*g, fps, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
+            post2_pt = utils.process_time()
+            post2_c = time.clock()
 
         else:
-            pre = utils.process_time()
+            pre_pt = utils.process_time()
+            pre_c = time.clock()
             if times is not None:
-                fxV, _ = rftpp.baseline_solver(hn.W*g, timeout=times[i])
+                fps, _ = rftpp.baseline_solver(hn.W*g, timeout=times[i])
             else:
-                fxV, _ = rftpp.baseline_solver(hn.W*g)
-            fps, _ = rftpp.post_process_fxpts(hn.W*g, fxV, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
-            post = utils.process_time()
+                fps, _ = rftpp.baseline_solver(hn.W*g)
+            post1_pt = utils.process_time()
+            post1_c = time.clock()
+            fps, _ = rftpp.post_process_fxpts(hn.W*g, fps, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
+            post2_pt = utils.process_time()
+            post2_c = time.clock()
 
-        timings[i] = post-pre
+        run_times_pt[i] = post1_pt-pre_pt
+        postproc_times_pt[i] = post2_pt-post1_pt
+        run_times_c[i] = post1_c-pre_c
+        postproc_times_c[i] = post2_c-post1_c
 
         cont_fps.append(fps)
 
@@ -2766,7 +2781,7 @@ def test_standard_vs_cont_stability4(data, gains=[1.0,10.0,50.0,100.0], dynamic=
             stable_match_hn_fps, unstable_match_hn_fps, stable_nmatch_hn_fps, unstable_nmatch_hn_fps,
             num_matched_data_by_all, num_matched_data_by_stable, num_matched_data_by_unstable,
             num_matched_hn_fps_by_all, num_matched_hn_fps_by_stable, num_matched_hn_fps_by_unstable,
-            timings)
+            run_times_pt,postproc_times_pt,run_times_c,postproc_times_c)
     return res
 
 def test_s_vs_c_stability_wrapper4(args):
@@ -2774,7 +2789,7 @@ def test_s_vs_c_stability_wrapper4(args):
     np.random.seed()
     data = gd.get_random_discrete(*shape)
     res = test_standard_vs_cont_stability4(data, gains, dynamic, traversal, tol, times)
-    return res
+    return tuple(list(res) + [data])
 
 def test_s_vs_c_stability_full4(n, shape, gains=[1.0,10.0,50.0,100.0], dynamic=False, traversal=True, tol=1e-6, times=None):
     stable_match_data = np.zeros((n,len(gains)), dtype=np.int_)
@@ -2791,34 +2806,42 @@ def test_s_vs_c_stability_full4(n, shape, gains=[1.0,10.0,50.0,100.0], dynamic=F
     num_matched_hn_fps_by_all = np.zeros((n,len(gains)), dtype=np.int_)
     num_matched_hn_fps_by_stable = np.zeros((n,len(gains)), dtype=np.int_)
     num_matched_hn_fps_by_unstable = np.zeros((n,len(gains)), dtype=np.int_)
-    timings = np.zeros((n,len(gains)), dtype=np.int_)
+    run_times_pt = np.zeros((n,len(gains)))
+    postproc_times_pt = np.zeros((n,len(gains)))
+    run_times_c = np.zeros((n,len(gains)))
+    postproc_times_c = np.zeros((n,len(gains)))
+    data_lst = []
 
 
     pool = mp.Pool(16)
     res = pool.map(test_s_vs_c_stability_wrapper4, [(shape,gains,dynamic,traversal,tol,times)]*n)
 
     for i in xrange(n):
-        stable_match_data[i] += res[i][0]
-        unstable_match_data[i] += res[i][1]
-        stable_nmatch_data[i] += res[i][2]
-        unstable_nmatch_data[i] += res[i][3]
-        stable_match_hn_fps[i] += res[i][4]
-        unstable_match_hn_fps[i] += res[i][5]
-        stable_nmatch_hn_fps[i] += res[i][6]
-        unstable_nmatch_hn_fps[i] += res[i][7]
-        num_matched_data_by_all[i] += res[i][8]
-        num_matched_data_by_stable[i] += res[i][9]
-        num_matched_data_by_unstable[i] += res[i][10]
-        num_matched_hn_fps_by_all[i] += res[i][11]
-        num_matched_hn_fps_by_stable[i] += res[i][12]
-        num_matched_hn_fps_by_unstable[i] += res[i][13]
-        timings[i] += res[i][14]
+        stable_match_data[i] = res[i][0]
+        unstable_match_data[i] = res[i][1]
+        stable_nmatch_data[i] = res[i][2]
+        unstable_nmatch_data[i] = res[i][3]
+        stable_match_hn_fps[i] = res[i][4]
+        unstable_match_hn_fps[i] = res[i][5]
+        stable_nmatch_hn_fps[i] = res[i][6]
+        unstable_nmatch_hn_fps[i] = res[i][7]
+        num_matched_data_by_all[i] = res[i][8]
+        num_matched_data_by_stable[i] = res[i][9]
+        num_matched_data_by_unstable[i] = res[i][10]
+        num_matched_hn_fps_by_all[i] = res[i][11]
+        num_matched_hn_fps_by_stable[i] = res[i][12]
+        num_matched_hn_fps_by_unstable[i] = res[i][13]
+        run_times_pt[i] = res[i][14]
+        postproc_times_pt[i] = res[i][15]
+        run_times_c[i] = res[i][16]
+        postproc_times_c[i] = res[i][17]
+        data_lst.append(res[i][18])
 
     res = (stable_match_data, unstable_match_data, stable_nmatch_data, unstable_nmatch_data,
             stable_match_hn_fps, unstable_match_hn_fps, stable_nmatch_hn_fps, unstable_nmatch_hn_fps,
             num_matched_data_by_all, num_matched_data_by_stable, num_matched_data_by_unstable,
             num_matched_hn_fps_by_all, num_matched_hn_fps_by_stable, num_matched_hn_fps_by_unstable,
-            timings)
+            run_times_pt, postproc_times_pt, run_times_c, postproc_times_c, data)
     return res
 
 def test_timing_tanh_process(args):
