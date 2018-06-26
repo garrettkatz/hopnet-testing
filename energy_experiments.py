@@ -168,7 +168,8 @@ def run_compute_fiber_energy_pool(args_list, num_procs=0):
 def plot_fiber_energy(filebase):
 
     npz = dict(np.load(filebase+'.npz'))
-    g, W, data, fiber = float(npz["g"]), npz["W"], npz["data"], npz["fiber"]
+    g, W, data, fiber, found = float(npz["g"]), npz["W"], npz["data"], npz["fiber"], npz["found"]
+    print("found %d of %d"%(np.count_nonzero(found), data.shape[1]))
     hn = chc.Hopnet(n=W.shape[0], gain=g)
     hn.W = W
 
@@ -181,17 +182,25 @@ def plot_fiber_energy(filebase):
     pt.figure(figsize=(6,4))
     h1 = pt.plot(energy,'-k')[0]
 
-    # Indicate zero-crossings
+    # Indicate zero-crossings and alpha mins
     sign_change = np.flatnonzero(np.sign(fiber[-1,:-1]*fiber[-1,1:]) <= 0)
+    alpha_min = np.flatnonzero(
+        (np.fabs(fiber[-1,:-2]) > np.fabs(fiber[-1,1:-1])) & \
+        (np.fabs(fiber[-1,1:-1]) < np.fabs(fiber[-1,2:])))
+    candidates = np.sort(list(set(sign_change) | set(alpha_min)))
     y_min, y_max = energy.min(), energy.max()
-    for sc in sign_change:
+    # for sc in sign_change:
+    for sc in candidates:
         pt.plot([sc, sc], [y_min, y_max], linestyle=':', color='gray', zorder=1)
 
     # Indicate stable and stored fixed points
     h2 = Line2D([0],[0], marker='s', c='none', markeredgecolor='k')
     h3 = Line2D([0],[0], marker='D', c='none', markerfacecolor='k', markeredgecolor='k')
-    for sc in sign_change:
-        v = fiber[:-1,sc]
+    # for sc in sign_change:
+    for sc in candidates:
+        v = fiber[:-1,[sc]]
+        # v, _ = rfx.post_process_fxpts(g*W, v)
+        v = v[:,0]
         # Stability
         eigs = np.linalg.eigvals(hn.jacobian(v))
         if np.absolute(eigs).max() < 1: # stable around fixed point
@@ -199,6 +208,10 @@ def plot_fiber_energy(filebase):
                 marker='s', c='none', edgecolors='k', zorder=2)
         # Stored
         if (np.sign(data * v[:,np.newaxis]) > 0).all(axis=0).any():
+            pt.scatter([sc], [energy[sc]],
+                marker='D', c='k', edgecolors='k', zorder=3)
+        # Fiber solver also returns complements
+        if (np.sign(data * v[:,np.newaxis]) < 0).all(axis=0).any():
             pt.scatter([sc], [energy[sc]],
                 marker='D', c='k', edgecolors='k', zorder=3)
 
@@ -299,8 +312,10 @@ if __name__ == "__main__":
     # run_compute_fiber_energy_pool(args_list, num_procs=0)
 
     for mode_string in ["sync", "async_deterministic"]:
-        plot_fiber_energy(filebase='energy/run2_' + mode_string)
-        # plot_fxpt_energy(filebase='energy/run2_' + mode_string)
-        plot_energy_runs(filebases=['energy/run%d_%s'%(r, mode_string)
-            for r in range(num_runs)])
+        for d in range(num_runs):
+            print("%s run %d"%(mode_string, d))
+            plot_fiber_energy(filebase='energy/run%d_%s'%(d,mode_string))
+            # plot_fxpt_energy(filebase='energy/run%d_%s'%(d,mode_string))
+        # plot_energy_runs(filebases=['energy/run%d_%s'%(r, mode_string)
+        #     for r in range(num_runs)])
 
