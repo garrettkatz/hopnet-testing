@@ -1289,7 +1289,7 @@ def post_process_fxpts(W, fxV, logfile=None, refine_cap=10000, Winv=None, neighb
     fxV_unique = get_unique_points_recursively(fxV, neighbors=neighbors)
     return fxV_unique, fxV
 
-def run_solver(W, c=None):
+def run_solver(W, c=None, post_process=True):
     """
     Convenience wrapper for the traverse algorithm with post-processing.
     W should be the weight matrix (N by N numpy.array)
@@ -1309,7 +1309,8 @@ def run_solver(W, c=None):
     fiber = np.concatenate(fiber, axis=1)
     # Post-process
     # fxpts, _ = post_process_fxpts(W, fxpts)
-    fxpts, _ = post_process_fxpts(W, fxpts, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
+    if post_process:
+        fxpts, _ = post_process_fxpts(W, fxpts, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
     # Return output
     return fxpts, fiber
 

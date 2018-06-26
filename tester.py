@@ -2795,7 +2795,7 @@ def test_s_vs_c_stability_full4(n, shape, gains=[1.0,10.0,50.0,100.0], dynamic=F
 
 
     pool = mp.Pool(16)
-    res = pool.map(test_s_vs_c_stability_wrapper4, [(shape,gains,dynamic,traversal,tol,times)]*n, chunksize=2)
+    res = pool.map(test_s_vs_c_stability_wrapper4, [(shape,gains,dynamic,traversal,tol,times)]*n)
 
     for i in xrange(n):
         stable_match_data[i] += res[i][0]
@@ -2821,3 +2821,55 @@ def test_s_vs_c_stability_full4(n, shape, gains=[1.0,10.0,50.0,100.0], dynamic=F
             timings)
     return res
 
+def test_timing_tanh_process(args):
+    i,shape,g,traversal,tlim = args
+
+    data = gd.get_random_discrete(*shape)
+
+    hn = chc.Hopnet(data.shape[0], gain=g)
+    hn.learn(data)
+
+    if traversal:
+        pre_pt = utils.process_time()
+        pre_c = time.clock()
+        fps, _ = rftpp.run_solver(hn.W*g, post_process=False)
+        post1_pt = utils.process_time()
+        post1_c = time.clock()
+        fps, _ = rftpp.post_process_fxpts(hn.W*g, fps, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
+        post2_pt = utils.process_time()
+        post2_c = time.clock()
+
+    else:
+        pre_pt = utils.process_time()
+        pre_c = time.clock()
+        fps, _ = rftpp.baseline_solver(hn.W*g, timeout=tlim)
+        post1_pt = utils.process_time()
+        post1_c = time.clock()
+        fps, _ = rftpp.post_process_fxpts(hn.W*g, fps, neighbors=lambda X,y: (np.fabs(X-y)<2**-21).all(axis=0))
+        post2_pt = utils.process_time()
+        post2_c = time.clock()
+
+    return i, g, post1_pt - pre_pt, post2_pt - post1_pt, post1_c - pre_c, post2_c - post1_c 
+
+
+def test_timing_tanh(n, shape=(100,3), gains=[1,5,10,15,20,25,30,35,40,45,50,55,60], traversal=True, tlims=None):
+    run_times_pt = np.zeros((n,len(gains)))
+    postproc_times_pt = np.zeros((n,len(gains)))
+    run_times_c = np.zeros((n,len(gains)))
+    postproc_times_c = np.zeros((n,len(gains)))
+
+    if tlims is not None:
+        tlims = {g:tlims[i] for i,g in enumerate(gains)}
+    else:
+        tlims = {g:None for g in gains}
+
+    pool = mp.Pool(12)
+    res = pool.map(test_timing_tanh_process, [(i,shape,g,traversal,tlims[g]) for i,g in it.product(xrange(n),gains)])
+
+    for i,g,run_pt,postproc_pt,run_c,postproc_c in res:
+        run_times_pt[i,g] = run_pt
+        postproc_times_pt[i,g] = postproc_pt
+        run_times_c[i,g] = run_c
+        postproc_times_c[i,g] = postproc_c
+
+    return run_times_pt,postproc_times_pt,run_times_c,postproc_times_c
