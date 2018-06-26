@@ -2841,7 +2841,7 @@ def test_s_vs_c_stability_full4(n, shape, gains=[1.0,10.0,50.0,100.0], dynamic=F
             stable_match_hn_fps, unstable_match_hn_fps, stable_nmatch_hn_fps, unstable_nmatch_hn_fps,
             num_matched_data_by_all, num_matched_data_by_stable, num_matched_data_by_unstable,
             num_matched_hn_fps_by_all, num_matched_hn_fps_by_stable, num_matched_hn_fps_by_unstable,
-            run_times_pt, postproc_times_pt, run_times_c, postproc_times_c, data)
+            run_times_pt, postproc_times_pt, run_times_c, postproc_times_c, data_lst)
     return res
 
 def test_timing_tanh_process(args):
